@@ -1,0 +1,198 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- Global Deny ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Global Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isEmailVerified() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isEmailVerified() && (
+        request.auth.token.email == 'daup4531@gmail.com' ||
+        request.auth.token.email == 'iamtofu122005@gmail.com' ||
+        request.auth.token.email == 'dauphu122005@gmail.com' ||
+        request.auth.token.email == 'dauphu1205s@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isString(val) {
+      return val is string;
+    }
+
+    function isNumber(val) {
+      return val is number;
+    }
+
+    // --- Validation Blueprints ---
+
+    function isValidUserProfile(data, targetUserId) {
+      return (isAdmin() || data['uid'] == targetUserId) &&
+             isString(data['email']) &&
+             (!('displayName' in data) || isString(data['displayName'])) &&
+             (!('walletBalance' in data) || isNumber(data['walletBalance'])) &&
+             (!('rating' in data) || isNumber(data['rating'])) &&
+             (!('totalTrips' in data) || isNumber(data['totalTrips']));
+    }
+
+    function isValidHelpRequestUpdate(data, existingData) {
+      return (isAdmin() || data['userId'] == existingData['userId']) &&
+             isString(data['userName']) &&
+             isString(data['service']) &&
+             (data['status'] in ['open', 'matched', 'completed']) &&
+             (!('location' in data) || isString(data['location'])) &&
+             (!('time' in data) || isString(data['time'])) &&
+             (!('phoneNumber' in data) || isString(data['phoneNumber'])) &&
+             (!('userImg' in data) || isString(data['userImg'])) &&
+             (!('price' in data) || isString(data['price'])) &&
+             (!('description' in data) || isString(data['description'])) &&
+             (!('coords' in data) || data['coords'] is map) &&
+             (!('createdAt' in data) || data['createdAt'] == existingData['createdAt']);
+    }
+
+    function isValidHelpRequestCreate(data) {
+      return (isAdmin() || data['userId'] == request.auth.uid) &&
+             isString(data['userName']) &&
+             isString(data['service']) &&
+             (data['status'] in ['open', 'matched', 'completed']) &&
+             (!('location' in data) || isString(data['location'])) &&
+             (!('time' in data) || isString(data['time'])) &&
+             (!('phoneNumber' in data) || isString(data['phoneNumber'])) &&
+             (!('userImg' in data) || isString(data['userImg'])) &&
+             (!('price' in data) || isString(data['price'])) &&
+             (!('description' in data) || isString(data['description'])) &&
+             (!('coords' in data) || data['coords'] is map) &&
+             (!('createdAt' in data) || data['createdAt'] == request.time);
+    }
+
+    function isValidKidRequest(data) {
+      return isString(data['kidName']) &&
+             isString(data['item']) &&
+             (data['status'] in ['pending', 'approved', 'rejected']);
+    }
+
+    // --- Collection Matches ---
+
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if (isOwner(userId) || isAdmin()) && isValidId(userId);
+      allow list: if isAdmin(); // Root users list is admin only
+      
+      // Allow creation even if not verified yet to avoid onboarding blockers
+      allow create: if isOwner(userId) && isValidUserProfile(incoming(), userId) && isValidId(userId);
+      
+      allow update: if (isOwner(userId) || isAdmin()) && isValidId(userId) &&
+                    isValidUserProfile(incoming(), userId) && (
+                      isAdmin() || 
+                      // Owner can update fields, including those used in onboarding/management
+                      (incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'preferredMode', 'pin', 'failedAttempts', 'lockoutUntil', 'walletBalance', 'totalTrips', 'cards', 'activePlanId', 'trialEnd']))
+                    );
+
+      // Sub-collections owner-only
+      match /requests/{requestId} {
+        allow read: if (isOwner(userId) || isAdmin()) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidKidRequest(incoming()) && isValidId(userId) && isValidId(requestId);
+        allow update: if (isOwner(userId) || isAdmin()) && isValidKidRequest(incoming()) && isValidId(userId) && isValidId(requestId) && (
+          // Allow approving requests with price/timestamp
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'finalPrice', 'approvedAt'])
+        );
+        allow delete: if (isOwner(userId) || isAdmin()) && isValidId(userId) && isValidId(requestId);
+      }
+
+      match /status/elderly {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      match /reminders/{reminderId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      match /memories/{memoryId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      match /transactions/{transactionId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && incoming().amount is number;
+      }
+
+      match /appointments/{appointmentId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      match /acceptedHelp/{helpId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      match /reviews/{reviewId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+      }
+
+      match /logs/{logId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    match /helpRequests/{requestId} {
+      allow get: if isSignedIn() && isValidId(requestId);
+      allow list: if isSignedIn(); // Public listing
+      
+      allow create: if isSignedIn() && isValidHelpRequestCreate(incoming()) && isValidId(requestId);
+      
+      allow update: if isSignedIn() && isValidId(requestId) && (
+        isAdmin() ||
+        // Action: Owner updates own request (including status/metadata)
+        (isOwner(existing().userId) && isValidHelpRequestUpdate(incoming(), existing()) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['service', 'location', 'time', 'phoneNumber', 'status', 'price', 'description', 'coords', 'updatedAt'])) ||
+        // Action: Helper accepts request
+        (existing().status == 'open' && incoming().status == 'matched' &&
+         isString(incoming().matchedWithId) && isString(incoming().matchedWithName) &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'matchedWithId', 'matchedWithName', 'updatedAt']))
+      );
+      
+      allow delete: if (isOwner(existing().userId) || isAdmin()) && isValidId(requestId);
+    }
+
+    match /companions/{companionId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

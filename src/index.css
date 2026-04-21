@@ -1,0 +1,220 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700;800;900&family=Poppins:wght@600;700;800;900&family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&family=Lexend:wght@400;600;800&display=swap');
+@import "tailwindcss";
+@import "katex/dist/katex.min.css";
+
+@theme {
+  --font-display: "Instrument Serif", serif;
+  --font-body: "Inter", sans-serif;
+  --font-sans: "Inter", "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Poppins", sans-serif;
+  --font-kids: "Lexend", sans-serif;
+
+  /* Default App Colors (Colorful & High Contrast) */
+  --color-primary: #FF9F1C;
+  --color-secondary: #2EC4B6;
+  --color-accent: #E85D75;
+  --color-primary-foreground: #FFFFFF;
+
+  /* Legacy / App-wide variables */
+  --color-cream: #FFFDF9;
+  --color-kids-orange: #FF9F1C;
+  --color-kids-blue: #2EC4B6;
+  --color-pro-green: #2D6A4F;
+  --color-pro-white: #F8F9FA;
+  --color-elderly-bg: #FFF9E6;
+  --color-elderly-text: #1A1A1A;
+  --color-elderly-accent: #FFA000;
+
+  @keyframes gradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  --animate-gradient: gradient 3s linear infinite;
+}
+
+@layer base {
+  body {
+    @apply bg-cream text-gray-900 font-body transition-colors duration-500;
+  }
+}
+
+/* --- Cinematic Theme (Restricted to Landing Page) --- */
+.theme-cinematic {
+  --color-background: hsl(201 100% 13%);
+  --color-foreground: hsl(0 0% 100%);
+  --color-muted-foreground: hsl(240 4% 66%);
+  --color-primary: hsl(0 0% 100%);
+  --color-primary-foreground: hsl(0 0% 4%);
+  --color-secondary: hsl(0 0% 10%);
+  --color-accent: hsl(0 0% 10%);
+  --color-border: hsl(0 0% 18%);
+  
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-body);
+}
+
+.theme-cinematic h1, 
+.theme-cinematic h2, 
+.theme-cinematic h3 {
+  font-family: var(--font-display);
+}
+
+/* --- Colorful Dashboard Accents --- */
+.text-colorful {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-primary via-secondary to-accent animate-gradient;
+  background-size: 200% auto;
+}
+
+/* --- Liquid Glass Effect --- */
+.liquid-glass {
+  background: rgba(255, 255, 255, 0.01);
+  background-blend-mode: luminosity;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: none;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.15) 20%,
+    rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%,
+    rgba(255,255,255,0.15) 80%, rgba(255,255,255,0.45) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* --- Redesign Animations --- */
+@keyframes fade-rise {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-rise { animation: fade-rise 0.8s ease-out both; }
+.animate-fade-rise-delay { animation: fade-rise 0.8s ease-out 0.2s both; }
+.animate-fade-rise-delay-2 { animation: fade-rise 0.8s ease-out 0.4s both; }
+
+/* --- High Contrast Mode --- */
+.high-contrast {
+  --color-elderly-bg: #000000;
+  --color-elderly-text: #FFD700;
+  --color-elderly-accent: #FFFFFF;
+}
+
+/* Elderly Mode Overrides */
+.theme-elderly {
+  font-size: 1.5rem; /* Base font size increase per PDF (150%) */
+  background-color: var(--color-elderly-bg);
+  color: var(--color-elderly-text);
+  @apply selection:bg-elderly-accent;
+}
+
+.theme-elderly .bg-white {
+  @apply bg-amber-50/80 backdrop-blur-sm border-2 border-amber-200/50;
+}
+
+.theme-elderly .bg-gray-50,
+.theme-elderly .bg-blue-50,
+.theme-elderly .bg-green-50,
+.theme-elderly .bg-purple-50,
+.theme-elderly .bg-red-50 {
+  @apply bg-amber-100/50 border-amber-200/50;
+}
+
+.theme-elderly .shadow-sm,
+.theme-elderly .shadow-lg {
+  @apply shadow-amber-900/5;
+}
+
+.theme-elderly h1 { font-size: 3.5rem; font-weight: 900; }
+.theme-elderly h2 { font-size: 2.8rem; font-weight: 800; }
+
+.theme-elderly .bg-primary {
+  @apply bg-amber-500 text-white;
+}
+
+.theme-elderly .text-primary {
+  @apply text-amber-600;
+}
+
+.theme-elderly .btn-huge {
+  @apply w-full min-h-[120px] flex flex-col items-center justify-center gap-6 p-10 rounded-[48px] border-8 border-gray-900 text-3xl font-black shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] transition-transform active:scale-95 active:shadow-none bg-white text-gray-900;
+}
+
+/* 3D "Physical" Button Style */
+.btn-3d {
+  @apply relative translate-y-[-4px] border-b-[8px] border-black active:translate-y-[0px] active:border-b-0;
+}
+
+/* Kids Mode Overrides */
+.theme-kids {
+  font-family: var(--font-kids);
+  background-color: #FFF;
+}
+
+.theme-kids .card-bouncy {
+  @apply rounded-[32px] border-4 border-kids-orange shadow-[8px_8px_0px_0px_#FF9F1C] hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[12px_12px_0px_0px_#FF9F1C] transition-all;
+}
+
+.gradient-primary {
+  background: linear-gradient(135deg, #E85D75 0%, #FF8E9E 100%);
+}
+
+.gradient-kids {
+  background: linear-gradient(135deg, #FF9F1C 0%, #FFBF69 100%);
+}
+
+.glass-card {
+  @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-xl;
+}
+
+/* Voice Assistant Pulse */
+.voice-pulse {
+  @apply relative flex items-center justify-center;
+}
+
+.voice-pulse::before {
+  content: '';
+  @apply absolute w-full h-full bg-primary/30 rounded-full animate-ping;
+}
+
+/* --- Markdown Styles --- */
+.markdown-body {
+  @apply text-sm leading-relaxed;
+}
+.markdown-body p {
+  @apply mb-2 last:mb-0;
+}
+.markdown-body ul, .markdown-body ol {
+  @apply ml-4 mb-2;
+}
+.markdown-body ul {
+  @apply list-disc;
+}
+.markdown-body ol {
+  @apply list-decimal;
+}
+.markdown-body strong {
+  @apply font-black;
+}
+.markdown-body italic {
+  @apply italic;
+}
+.markdown-body code {
+  @apply bg-gray-100 px-1 rounded font-mono text-xs;
+}
+.markdown-body .katex-display {
+  @apply my-2 overflow-x-auto overflow-y-hidden py-1;
+}

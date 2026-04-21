@@ -1,0 +1,231 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user preferences and information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string", "format": "uri" },
+        "walletBalance": { "type": "number", "description": "Current balance in VND" },
+        "rating": { "type": "number", "description": "Average rating as a helper" },
+        "totalTrips": { "type": "number", "description": "Number of times user has helped others" },
+        "pin": { "type": "string", "description": "4-6 digit numeric PIN for restricted mode access" },
+        "failedAttempts": { "type": "number", "description": "Number of consecutive failed PIN entries" },
+        "lockoutUntil": { "type": "string", "format": "date-time", "description": "Lockout expiration timestamp" },
+        "preferredMode": { "type": "string", "enum": ["default", "elderly", "kids", "pro"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "KidRequest": {
+      "title": "Kid Request",
+      "description": "Requests made by children for parent approval",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "kidName": { "type": "string" },
+        "item": { "type": "string" },
+        "price": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["kidName", "item", "status"]
+    },
+    "ElderlyStatus": {
+      "title": "Elderly Status",
+      "description": "Real-time health monitoring and activity data",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "healthScore": { "type": "number" },
+        "heartRate": { "type": "number" },
+        "mood": { "type": "string" },
+        "activeService": { "type": "string" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "address": { "type": "string" }
+          }
+        },
+        "schedule": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "time": { "type": "string" },
+              "activity": { "type": "string" },
+              "status": { "type": "string", "enum": ["pending", "completed"] }
+            }
+          }
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Reminder": {
+      "title": "Reminder",
+      "description": "Notices and reminders shared between family members",
+      "type": "object",
+      "properties": {
+        "from": { "type": "string" },
+        "content": { "type": "string" },
+        "type": { "type": "string", "enum": ["health", "event", "task"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["from", "content"]
+    },
+    "Memory": {
+      "title": "Family Memory",
+      "description": "Photos and moments shared with elderly members",
+      "type": "object",
+      "properties": {
+        "url": { "type": "string" },
+        "caption": { "type": "string" },
+        "author": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["url"]
+    },
+    "Companion": {
+      "title": "Companion",
+      "description": "Stores companion (service provider) information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "age": { "type": "number" },
+        "school": { "type": "string" },
+        "rating": { "type": "number" },
+        "bio": { "type": "string" },
+        "img": { "type": "string" },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "school"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Records of wallet deposits, payments and earnings",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["deposit", "payment", "earning", "withdrawal"] },
+        "title": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "title", "amount"]
+    },
+    "HelpRequest": {
+      "title": "Help Request",
+      "description": "A public request for help that others can volunteer for",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userImg": { "type": "string" },
+        "service": { "type": "string" },
+        "location": { "type": "string" },
+        "time": { "type": "string" },
+        "phoneNumber": { "type": "string", "description": "Contact phone number of the person needing help" },
+        "status": { "type": "string", "enum": ["open", "matched", "completed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "service", "status"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "User feedback and rating for a completed help session",
+      "type": "object",
+      "properties": {
+        "fromId": { "type": "string" },
+        "fromName": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromId", "rating"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Scheduled maintenance or companion sessions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "service": { "type": "string" },
+        "companion": { "schema": "Companion" },
+        "status": { "type": "string", "enum": ["active", "completed", "cancelled"] },
+        "time": { "type": "string" },
+        "location": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "service", "status", "time"]
+    },
+    "SystemLog": {
+      "title": "System Log",
+      "description": "Detailed logs of system activities and management actions",
+      "type": "object",
+      "properties": {
+        "action": { "type": "string" },
+        "type": { "type": "string", "enum": ["kid", "senior", "financial", "system"] },
+        "time": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["action", "type"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Individual user profiles including wallet and role"
+    },
+    "/users/{userId}/requests/{requestId}": {
+      "schema": "KidRequest",
+      "description": "Requests from children belonging to this user's family"
+    },
+    "/users/{userId}/status/elderly": {
+      "schema": "ElderlyStatus",
+      "description": "Current status of the elderly member in this user's family"
+    },
+    "/users/{userId}/reminders/{reminderId}": {
+      "schema": "Reminder",
+      "description": "Reminders for the family members"
+    },
+    "/users/{userId}/memories/{memoryId}": {
+      "schema": "Memory",
+      "description": "Family photos and memories shared with elderly"
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "History of financial activities for the user"
+    },
+    "/users/{userId}/logs/{logId}": {
+      "schema": "SystemLog",
+      "description": "Administrative and system activity logs"
+    },
+    "/users/{userId}/appointments/{appointmentId}": {
+      "schema": "Appointment",
+      "description": "Scheduled appointments for the user"
+    },
+    "/users/{userId}/acceptedHelp/{helpId}": {
+      "schema": "HelpRequest",
+      "description": "Help requests accepted by the user"
+    },
+    "/users/{userId}/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Reviews received by the user"
+    },
+    "/helpRequests/{requestId}": {
+      "schema": "HelpRequest",
+      "description": "Public board for people needing help"
+    },
+    "/companions/{companionId}": {
+      "schema": "Companion",
+      "description": "Registered companions"
+    }
+  }
+}
