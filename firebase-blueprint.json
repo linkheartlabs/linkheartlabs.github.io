@@ -16,6 +16,9 @@
         "failedAttempts": { "type": "number", "description": "Number of consecutive failed PIN entries" },
         "lockoutUntil": { "type": "string", "format": "date-time", "description": "Lockout expiration timestamp" },
         "preferredMode": { "type": "string", "enum": ["default", "elderly", "kids", "pro"] },
+        "voucherSubscriptionActive": { "type": "boolean" },
+        "vouchers": { "type": "number", "description": "Number of active vouchers remaining" },
+        "activePlanId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email"]

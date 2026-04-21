@@ -1635,15 +1635,22 @@ const StaffSection = ({ onSelectStaff, showSimulation, mode = 'elderly' }: { onS
   );
 };
 
-const CompanionDetail = ({ companion, onConfirm, mode = 'senior' }: { 
+const CompanionDetail = ({ companion, onConfirm, mode = 'senior', userData }: { 
   companion: typeof COMPANIONS[0] & { service?: string }; 
-  onConfirm?: () => void;
+  onConfirm?: (discount: number) => void;
   mode?: 'elderly' | 'kids' | 'pro' | 'senior';
+  userData?: any;
 }) => {
   const [showQuickChat, setShowQuickChat] = useState(false);
+  const [useVoucher, setUseVoucher] = useState(false);
+
+  const basePrice = 150000;
+  const discountRate = useVoucher ? 0.2 : 0; // 20% discount
+  const finalPrice = basePrice * (1 - discountRate);
 
   return (
     <div className="space-y-6">
+      {/* ... header as before ... */}
       <div className="flex items-center gap-6">
         <div className="relative">
           <img src={companion.img} className="w-24 h-24 rounded-full border-4 border-pro-green/20 object-cover" alt={companion.name} referrerPolicy="no-referrer" />
@@ -1671,6 +1678,30 @@ const CompanionDetail = ({ companion, onConfirm, mode = 'senior' }: {
           </div>
         </div>
       </div>
+
+      {/* Voucher Selector */}
+      {userData?.voucherSubscriptionActive && userData?.vouchers > 0 && mode === 'pro' && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`p-6 rounded-3xl border-4 transition-all cursor-pointer flex items-center justify-between ${useVoucher ? 'border-colorful bg-colorful/5' : 'border-gray-100 bg-white hover:bg-gray-50'}`}
+          onClick={() => setUseVoucher(!useVoucher)}
+        >
+          <div className="flex items-center gap-4">
+             <div className={`p-4 rounded-2xl ${useVoucher ? 'bg-colorful text-white' : 'bg-gray-100 text-gray-400'}`}>
+                <Wallet className="w-6 h-6" />
+             </div>
+             <div>
+                <p className="text-xs font-black text-gray-400 uppercase tracking-widest">LinkHeart Wallet Voucher</p>
+                <p className="text-sm font-black text-gray-900">Giảm giá 20% cho ca làm</p>
+                <p className="text-[10px] font-bold text-colorful italic mt-1">Sẵn có: {userData.vouchers} Voucher</p>
+             </div>
+          </div>
+          <div className={`w-8 h-8 rounded-full border-4 flex items-center justify-center transition-all ${useVoucher ? 'border-colorful bg-colorful text-white' : 'border-gray-200'}`}>
+             {useVoucher && <CheckCircle2 className="w-4 h-4" />}
+          </div>
+        </motion.div>
+      )}
       
       <AnimatePresence mode="wait">
         {showQuickChat ? (
@@ -1724,14 +1755,24 @@ const CompanionDetail = ({ companion, onConfirm, mode = 'senior' }: {
       {!showQuickChat && onConfirm && (
         <div className="pt-4 border-t border-gray-100 space-y-4">
           <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl">
-             <p className="font-bold text-gray-500">Giá tham khảo:</p>
-             <p className="text-2xl font-black text-gray-900">{PRICES.senior.toLocaleString()}đ/giờ</p>
+             <p className="font-bold text-gray-500">Giá thanh toán:</p>
+             <div className="text-right">
+                {useVoucher ? (
+                  <>
+                    <p className="text-2xl font-black text-colorful">{finalPrice.toLocaleString()}đ</p>
+                    <p className="text-xs font-bold text-gray-300 line-through italic">{basePrice.toLocaleString()}đ</p>
+                  </>
+                ) : (
+                  <p className="text-2xl font-black text-gray-900">{basePrice.toLocaleString()}đ</p>
+                )}
+             </div>
           </div>
           <button 
-            onClick={onConfirm}
+            onClick={() => onConfirm(discountRate)}
             className="w-full bg-pro-green text-white py-6 rounded-[32px] font-black text-xl shadow-xl hover:bg-pro-green-dark transition-all active:scale-95 flex items-center justify-center gap-3"
           >
-            XÁC NHẬN & ĐẶT LỊCH NGAY
+            {useVoucher ? <Sparkles className="w-6 h-6 animate-pulse" /> : <ShieldCheck className="w-6 h-6" />}
+            {useVoucher ? 'DÙNG VOUCHER & ĐẶT NGAY' : 'XÁC NHẬN & ĐẶT LỊCH NGAY'}
           </button>
         </div>
       )}
@@ -2976,6 +3017,7 @@ const ProMode = ({
   const [skippedHelpIds, setSkippedHelpIds] = useState<string[]>([]);
   const [rechargeState, setRechargeState] = useState<{ step: 'select' | 'amount' | 'detail'; method: 'visa' | 'bank' | null; amount: number }>({ step: 'select', method: null, amount: 0 });
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
+  const [useVoucherForPayment, setUseVoucherForPayment] = useState(false);
 
   // Seed Mock Help Requests if empty
   useEffect(() => {
@@ -3537,7 +3579,7 @@ const ProMode = ({
           const rawPrice = parseInt(paymentModal.request.price.replace(/\D/g, '')) || 0;
           const hasDiscount = trialDaysLeft !== null && trialDaysLeft > 0;
           const discountAmount = hasDiscount ? rawPrice * 0.3 : 0;
-          const finalPrice = rawPrice - discountAmount;
+          const finalPrice = rawPrice - discountAmount - (useVoucherForPayment ? rawPrice * 0.2 : 0);
           const isEnough = walletBalance >= finalPrice;
 
           return (
@@ -3548,6 +3590,25 @@ const ProMode = ({
                 <p className="text-gray-600">Món quà: <span className="font-black text-kids-orange">{paymentModal.request.item}</span></p>
               </div>
 
+              {/* Voucher Wallet Option */}
+              {userData?.voucherSubscriptionActive && userData?.vouchers > 0 && (
+                <div 
+                  className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between ${useVoucherForPayment ? 'border-colorful bg-colorful/5' : 'border-gray-100'}`}
+                  onClick={() => setUseVoucherForPayment(!useVoucherForPayment)}
+                >
+                  <div className="flex items-center gap-3">
+                     <Wallet className={`w-5 h-5 ${useVoucherForPayment ? 'text-colorful' : 'text-gray-400'}`} />
+                     <div>
+                        <p className="text-[10px] font-black uppercase text-gray-400">Dùng LinkHeart Voucher</p>
+                        <p className="text-xs font-bold">Giảm giá 20% thanh toán</p>
+                     </div>
+                  </div>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${useVoucherForPayment ? 'border-colorful bg-colorful text-white' : 'border-gray-300'}`}>
+                    {useVoucherForPayment && <CheckCircle2 className="w-3 h-3" />}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <div className="flex justify-between text-gray-500 font-bold">
                   <span>Giá gốc:</span>
@@ -3557,6 +3618,12 @@ const ProMode = ({
                   <div className="flex justify-between text-pro-green font-bold flex-wrap">
                      <span>Ưu đãi Dùng thử (30%):</span>
                      <span>-{discountAmount.toLocaleString()}đ</span>
+                  </div>
+                )}
+                {useVoucherForPayment && (
+                  <div className="flex justify-between text-colorful font-bold flex-wrap">
+                     <span>Voucher LinkHeart (20%):</span>
+                     <span>-{(rawPrice * 0.2).toLocaleString()}đ</span>
                   </div>
                 )}
                 <div className="flex justify-between text-xl md:text-2xl font-black text-gray-900 pt-2 border-t border-gray-200">
@@ -3590,7 +3657,12 @@ const ProMode = ({
                         const userRef = doc(db, 'users', auth.currentUser!.uid);
                         const reqRef = doc(db, 'users', auth.currentUser!.uid, 'requests', paymentModal.request!.id.toString());
                         
-                        await updateDoc(userRef, { walletBalance: walletBalance - finalPrice });
+                        const updates: any = { walletBalance: walletBalance - finalPrice };
+                        if (useVoucherForPayment) {
+                          updates.vouchers = (userData?.vouchers || 1) - 1;
+                        }
+
+                        await updateDoc(userRef, updates);
                         await updateDoc(reqRef, { 
                           status: 'approved', 
                           finalPrice: finalPrice,
@@ -3603,6 +3675,7 @@ const ProMode = ({
                           amount: finalPrice
                         });
 
+                        setUseVoucherForPayment(false);
                         setPaymentModal({ open: false, request: null, processing: false });
                         showSimulation('Duyệt thành công', `Đã mua ${paymentModal.request!.item} cho ${paymentModal.request!.kidName}!`, 'success');
                      } catch(err) {
@@ -3731,6 +3804,7 @@ const ProMode = ({
                   activePlanId={userData?.activePlanId}
                   isEmbedded={true}
                   trialDaysLeft={trialDaysLeft}
+                  userData={userData}
                   onSelectPlan={onSelectPlan}
                 />
               </div>
@@ -4444,8 +4518,11 @@ const ProMode = ({
             </div>
           ) : modal.type === 'companion' ? (
             <div className="text-left">
-              <CompanionDetail companion={modal.data} mode="pro" onConfirm={() => {
-                if (walletBalance < 150000) {
+              <CompanionDetail companion={modal.data} mode="pro" userData={userData} onConfirm={async (discount = 0) => {
+                const basePrice = 150000;
+                const finalPrice = basePrice * (1 - discount);
+
+                if (walletBalance < finalPrice) {
                   showToast('Số dư ví không đủ! Vui lòng nạp thêm.');
                   setActiveView('wallet');
                   setModal({ ...modal, open: false });
@@ -4460,7 +4537,17 @@ const ProMode = ({
                   location: 'Tại nhà'
                 };
                 setAppointments([...appointments, newAppt]);
-                handleUpdateBalance(walletBalance - 150000);
+                handleUpdateBalance(walletBalance - finalPrice);
+                
+                if (discount > 0 && auth.currentUser) {
+                  try {
+                    const userRef = doc(db, 'users', auth.currentUser.uid);
+                    await updateDoc(userRef, { vouchers: (userData?.vouchers || 1) - 1 });
+                  } catch (e) {
+                    console.error("Error updating vouchers:", e);
+                  }
+                }
+
                 setModal({ ...modal, open: false });
                 showSimulation('Đặt lịch thành công', 'Companion sẽ liên hệ với bạn trong giây lát.', 'success');
                 setTimeout(() => startTracking(newAppt), 3000);
@@ -5048,83 +5135,93 @@ const ElderlyMode = ({ onBack }: { onBack: () => void }) => {
 };
 
 // --- Pricing Component ---
-const Pricing = ({ onBack, onSelectPlan, trialDaysLeft, activePlanId, isEmbedded = false }: { 
+const Pricing = ({ onBack, onSelectPlan, trialDaysLeft, activePlanId, userData, isEmbedded = false }: { 
   onBack: () => void; 
   onSelectPlan: (plan: Plan) => void; 
   trialDaysLeft: number | null, 
   activePlanId?: string;
+  userData?: any;
   isEmbedded?: boolean;
 }) => {
   const plans: Plan[] = [
     {
-      id: "kids_1h",
-      name: "LinkHeart Kids",
-      price: "149.000",
-      rawPrice: 149000,
-      period: "/giờ",
-      features: ["Tông màu xanh lá/vàng", "Giao diện hoạt hình", "Thẻ kỹ năng (Dạy vẽ, Tiếng Anh)", "Hỗ trợ trẻ em dưới 18 tuổi"],
-      color: "border-kids-orange/30 bg-kids-orange/5",
-      button: "Đăng ký ngay"
+      id: "linkheart_voucher",
+      name: "Linkheart Voucher",
+      price: "Miễn phí*",
+      rawPrice: 0,
+      period: "/t1 đầu (sau 29k)",
+      features: ["20 Voucher giảm giá mỗi tháng", "Giảm 10% - 20% mỗi lần thanh toán", "Ví Voucher thanh toán tiện lợi", "Ưu đãi thanh toán hộ người khác"],
+      color: "border-colorful bg-white",
+      button: "Đăng ký Voucher"
     },
     {
-      id: "social_1h",
-      name: "LinkHeart Social",
-      price: "119.000",
-      rawPrice: 119000,
-      period: "/giờ",
-      features: ["Tông màu xanh dương", "Giao diện hiện đại", "Bộ lọc sở thích (Gym, Cafe, Xem phim)", "Kết nối bạn bè cùng sở thích"],
-      color: "border-pro-green/30 bg-pro-green/5",
-      button: "Đăng ký ngay"
-    },
-    {
-      id: "senior_1h",
-      name: "LinkHeart Senior",
-      price: "179.000",
-      rawPrice: 179000,
-      period: "/giờ",
-      features: ["Tông màu ấm (Cam/Kem)", "Chữ siêu lớn, dễ đọc", "Tích hợp nút gọi điện trực tiếp", "Hỗ trợ người cao tuổi"],
-      color: "border-primary/30 bg-primary/5",
-      button: "Đăng ký ngay"
-    },
-    {
-      id: "hieu_thao_s",
-      name: "Hiếu Thảo S (20h)",
-      price: "3.390.000",
-      rawPrice: 3390000,
-      period: "/gói",
-      features: ["Phù hợp dùng thử", "Làm quen với Companion", "Hỗ trợ 24/7", "Báo cáo sức khỏe cơ bản"],
+      id: "linkheart_basic",
+      name: "Linkheart Basic",
+      price: "3.0M",
+      rawPrice: 3000000,
+      period: "/tháng",
+      features: ["Linky AI cơ bản", "Nhân viên 1h/ngày (cố định)", "Chăm sóc cơ bản (Nhắc lịch, check-in)", "Không cố định 1 người nhân viên"],
       color: "border-gray-100",
-      button: "Chọn gói S"
+      button: "Chọn gói Basic"
     },
     {
-      id: "hieu_thao_m",
-      name: "Hiếu Thảo M (40h)",
-      price: "6.390.000",
-      rawPrice: 6390000,
-      period: "/gói",
-      features: ["Tặng Máy đo huyết áp điện tử", "Báo cáo tuần chi tiết", "Ưu tiên chọn Companion", "Tư vấn sức khỏe định kỳ"],
-      color: "border-primary-500 bg-primary/5",
-      button: "Chọn gói M",
+      id: "linkheart_standard",
+      name: "Linkheart Standard ⭐",
+      price: "6.0M",
+      rawPrice: 6000000,
+      period: "/tháng",
+      features: ["Linky AI Pro", "Nhân viên 2–3h/ngày", "Ưu tiên 1–2 nhân viên quen", "Chăm sóc chủ động + báo cáo"],
+      color: "border-pro-green/50 bg-pro-green/5",
+      button: "Chọn gói Standard",
       highlight: true
     },
     {
-      id: "hieu_thao_l",
-      name: "Hiếu Thảo L (60h)",
-      price: "8.990.000",
-      rawPrice: 8990000,
-      period: "/gói",
-      features: ["Companion cố định", "Nút SOS 24/7", "Miễn phí Tech-Tutor", "Gói Chăm sóc toàn diện"],
-      color: "border-red-500 bg-red-50",
-      button: "Chọn gói L"
+      id: "linkheart_premium",
+      name: "Linkheart Premium",
+      price: "15.0M",
+      rawPrice: 15000000,
+      period: "/tháng",
+      features: ["Linky AI Pro+", "Nhân viên 4–6h/ngày", "Nhân viên phụ trách chính", "Chăm sóc sâu + báo cáo chi tiết"],
+      color: "border-primary/50 bg-primary/5",
+      button: "Chọn gói Premium"
+    },
+    {
+      id: "linkheart_premium_ultra",
+      name: "Linkheart Premium Ultra",
+      price: "35.0M",
+      rawPrice: 35000000,
+      period: "/tháng",
+      features: ["Linky AI No-limit", "Nhân viên linh hoạt cả ngày", "Team riêng (không chỉ 1 người)", "Quản lý toàn diện + Ưu tiên tuyệt đối"],
+      color: "border-gray-900 bg-gray-50",
+      button: "Chọn gói Ultra"
+    },
+    {
+      id: "linkheart_hr",
+      name: "Booking Linkheart HR",
+      price: "500k/giờ",
+      rawPrice: 500000,
+      period: "/giờ",
+      features: ["Thuê nhân viên theo giờ", "Tùy chọn số lượng nhân viên", "Linh hoạt thời gian", "Làm việc theo yêu cầu"],
+      color: "border-colorful bg-white",
+      button: "Thuê nhân viên"
     }
   ];
 
   // Identifiy active plan
-  const pricingPlans = plans.map(p => ({
-    ...p,
-    isCurrent: activePlanId === p.id,
-    button: activePlanId === p.id ? "Đang sử dụng" : p.button
-  }));
+  const pricingPlans = plans.map(p => {
+    const hasDiscount = userData?.voucherSubscriptionActive && p.id !== 'linkheart_voucher';
+    const displayPrice = hasDiscount 
+      ? (p.rawPrice * 0.8 / 1000000).toFixed(1) + "M"
+      : p.price;
+
+    return {
+      ...p,
+      displayPrice,
+      hasDiscount,
+      isCurrent: activePlanId === p.id,
+      button: activePlanId === p.id ? "Đang sử dụng" : p.button
+    };
+  });
 
   return (
     <div className={`${isEmbedded ? 'min-h-0 bg-transparent py-12' : 'min-h-screen bg-cream py-24'} p-6 flex flex-col items-center relative overflow-hidden`}>
@@ -5162,8 +5259,15 @@ const Pricing = ({ onBack, onSelectPlan, trialDaysLeft, activePlanId, isEmbedded
               </div>
             )}
             <h3 className={`text-xl md:text-2xl font-black mb-2 ${plan.isCurrent ? 'text-white' : 'text-gray-900'}`}>{plan.name}</h3>
-            <div className="mb-6 md:mb-8 flex items-baseline">
-              <span className={`text-4xl md:text-5xl font-black ${plan.isCurrent ? 'text-primary' : 'text-gray-900'}`}>{plan.price}</span>
+            <div className="mb-6 md:mb-8 flex items-baseline gap-2 flex-wrap">
+              <span className={`text-4xl md:text-5xl font-black ${plan.isCurrent ? 'text-primary' : 'text-gray-900'}`}>
+                {plan.displayPrice}
+              </span>
+              {plan.hasDiscount && (
+                <span className="text-sm font-bold text-gray-400 line-through">
+                  {plan.price}
+                </span>
+              )}
               <span className={`text-xs md:text-sm font-bold ml-1 ${plan.isCurrent ? 'text-gray-400' : 'text-gray-500'}`}>{plan.period}</span>
             </div>
             
@@ -5185,6 +5289,19 @@ const Pricing = ({ onBack, onSelectPlan, trialDaysLeft, activePlanId, isEmbedded
             </button>
           </motion.div>
         ))}
+      </div>
+
+      <div className="mt-16 p-8 bg-gray-50 rounded-[40px] border-4 border-dashed border-gray-200 text-center max-w-2xl mx-auto relative z-10">
+         <p className="font-bold text-gray-500">
+            Cần hỗ trợ nhiều hơn? Bạn có thể yêu cầu nhân viên trung tâm hỗ trợ bổ sung cho các công việc phát sinh.
+         </p>
+         <p className="text-xl font-black text-gray-900 mt-2">
+            Giá ưu đãi: <span className="text-colorful">500.000đ - 1.000.000đ / giờ</span>
+         </p>
+      </div>
+
+      <div className="mt-8 text-center text-gray-400 text-xs font-bold uppercase tracking-widest relative z-10">
+        * Linkheart Voucher miễn phí tháng đầu tiên áp dụng cho đăng ký mới.
       </div>
     </div>
   );
@@ -5329,21 +5446,40 @@ const PinLock = ({
   );
 };
 
-const PaymentPage = ({ onBack, plan, user, walletBalance, onSuccess, onTopUp }: { 
+const PaymentPage = ({ onBack, plan, user, userData, walletBalance, onSuccess, onTopUp }: { 
   onBack: () => void; 
   plan: Plan; 
   user: FirebaseUser;
+  userData?: any;
   walletBalance: number;
   onSuccess: (finalBalance: number, planId: string) => void;
   onTopUp: () => void;
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
-  const isInsufficient = walletBalance < plan.rawPrice;
+  const [extraHours, setExtraHours] = useState(plan.id === 'linkheart_hr' ? 1 : 0);
+  const [staffCount, setStaffCount] = useState(plan.id === 'linkheart_hr' ? 1 : 0);
+
+  const isHRBooking = plan.id === 'linkheart_hr';
+  const hasVoucherDiscount = userData?.voucherSubscriptionActive && plan.id !== 'linkheart_voucher' && !isHRBooking;
+  const discountRate = hasVoucherDiscount ? 0.2 : 0;
+  
+  const basePlanPrice = isHRBooking ? 0 : plan.rawPrice * (1 - discountRate);
+  const staffRate = 500000;
+  
+  // For HR booking, price is staffCount * hours * rate
+  // For other plans, it is plan price + extra hours * rate
+  const calculatedStaffCost = isHRBooking 
+    ? (staffCount * extraHours * staffRate)
+    : (extraHours * staffRate);
+    
+  const totalPrice = basePlanPrice + calculatedStaffCost;
+
+  const isInsufficient = walletBalance < totalPrice;
 
   const handlePay = () => {
     setIsProcessing(true);
     setTimeout(() => {
-      onSuccess(walletBalance - plan.rawPrice, plan.id);
+      onSuccess(walletBalance - totalPrice, plan.id);
       setIsProcessing(false);
     }, 2000);
   };
@@ -5373,27 +5509,129 @@ const PaymentPage = ({ onBack, plan, user, walletBalance, onSuccess, onTopUp }: 
 
           <div className="p-8 bg-gray-50 rounded-[32px] border-2 border-gray-100 space-y-6">
              <div className="flex justify-between items-center text-sm font-black text-gray-400 uppercase tracking-widest">
-                <span>Gói dịch vụ</span>
+                <span>Chi tiết thanh toán</span>
                 <span>Giá tiền</span>
              </div>
-             <div className="flex justify-between items-center">
-                <h4 className="text-2xl font-black text-gray-900">{plan.name}</h4>
+             
+             {/* Main Plan / Selection */}
+             <div className="flex justify-between items-start">
+                <div>
+                  <h4 className="text-xl font-black text-gray-900">{plan.name}</h4>
+                  {hasVoucherDiscount && (
+                    <span className="text-[10px] font-black text-colorful uppercase bg-colorful/10 px-2 py-0.5 rounded-full">
+                      Voucher -20% Active
+                    </span>
+                  )}
+                  {isHRBooking && (
+                    <span className="text-[10px] font-black text-blue-500 uppercase bg-blue-50 px-2 py-0.5 rounded-full">
+                      Dịch vụ theo giờ
+                    </span>
+                  )}
+                </div>
                 <div className="text-right">
-                  <p className="text-3xl font-black text-primary">{plan.price}đ</p>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-tighter">{plan.period}</p>
+                  {!isHRBooking && (
+                    <>
+                      <p className={`text-xl font-black ${hasVoucherDiscount ? 'text-colorful' : 'text-gray-900'}`}>
+                        {basePlanPrice.toLocaleString()}đ
+                      </p>
+                      {hasVoucherDiscount && (
+                        <p className="text-xs font-bold text-gray-400 line-through">
+                          {plan.rawPrice.toLocaleString()}đ
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {isHRBooking && (
+                    <p className="text-xl font-black text-gray-900 italic">Tính theo lượng nhân sự</p>
+                  )}
                 </div>
              </div>
+
+             {/* Booking Factors (Hours/Staff) */}
+             {plan.id !== 'linkheart_voucher' && (
+               <div className="pt-4 border-t border-gray-200 space-y-6">
+                  {/* Hours Selection */}
+                  <div className="flex justify-between items-center bg-white p-4 rounded-3xl border-2 border-gray-100 shadow-sm">
+                     <div>
+                        <p className="text-sm font-black text-gray-900 uppercase">Thanh toán theo giờ</p>
+                        <p className="text-[10px] font-bold text-gray-400 italic">
+                          {isHRBooking ? "Chọn số giờ thuê nhân viên" : "Yêu cầu thêm nhân viên làm thêm giờ"}
+                        </p>
+                     </div>
+                     <div className="flex items-center gap-4 bg-gray-50 p-2 rounded-2xl border-2 border-gray-200">
+                        <button 
+                          onClick={() => setExtraHours(Math.max(isHRBooking ? 1 : 0, extraHours - 1))}
+                          className="w-10 h-10 rounded-xl bg-white text-gray-900 flex items-center justify-center font-black shadow-sm"
+                        >
+                          -
+                        </button>
+                        <span className="font-black w-6 text-center text-lg">{extraHours}h</span>
+                        <button 
+                          onClick={() => setExtraHours(extraHours + 1)}
+                          className="w-10 h-10 rounded-xl bg-gray-900 text-white flex items-center justify-center font-black shadow-sm"
+                        >
+                          +
+                        </button>
+                     </div>
+                  </div>
+
+                  {/* Staff Selection (For HR Booking only) */}
+                  {isHRBooking && (
+                    <div className="flex justify-between items-center bg-white p-4 rounded-3xl border-2 border-gray-100 shadow-sm">
+                       <div>
+                          <p className="text-sm font-black text-gray-900 uppercase">Số lượng nhân viên</p>
+                          <p className="text-[10px] font-bold text-gray-400 italic">Tùy chọn nhân sự thực hiện</p>
+                       </div>
+                       <div className="flex items-center gap-4 bg-gray-50 p-2 rounded-2xl border-2 border-gray-200">
+                          <button 
+                            onClick={() => setStaffCount(Math.max(1, staffCount - 1))}
+                            className="w-10 h-10 rounded-xl bg-white text-gray-900 flex items-center justify-center font-black shadow-sm"
+                          >
+                            -
+                          </button>
+                          <span className="font-black w-6 text-center text-lg">{staffCount}</span>
+                          <button 
+                            onClick={() => setStaffCount(staffCount + 1)}
+                            className="w-10 h-10 rounded-xl bg-gray-900 text-white flex items-center justify-center font-black shadow-sm"
+                          >
+                            +
+                          </button>
+                       </div>
+                    </div>
+                  )}
+
+                  {/* Pricing Breakdown */}
+                  <div className="pt-2">
+                    {isHRBooking ? (
+                       <div className="flex justify-between items-center">
+                          <p className="text-sm font-bold text-gray-500 italic">Chi phí: {staffCount} NV x {extraHours}h x 500k</p>
+                          <p className="text-xl font-black text-gray-900">{calculatedStaffCost.toLocaleString()}đ</p>
+                       </div>
+                    ) : extraHours > 0 && (
+                       <div className="flex justify-between items-center">
+                          <p className="text-sm font-bold text-gray-500">Phí nhân viên bổ sung:</p>
+                          <p className="text-lg font-black text-gray-900">+{calculatedStaffCost.toLocaleString()}đ</p>
+                       </div>
+                    )}
+                  </div>
+               </div>
+             )}
+
              <div className="pt-6 border-t border-gray-200">
                 <div className="flex justify-between items-center mb-2">
-                   <p className="text-sm font-bold text-gray-500">Số dư hiện tại:</p>
-                   <p className="text-xl font-black text-gray-900">{walletBalance.toLocaleString()}đ</p>
+                   <p className="text-sm font-bold text-gray-500">Tổng cộng:</p>
+                   <p className="text-3xl font-black text-primary">{totalPrice.toLocaleString()}đ</p>
+                </div>
+                <div className="flex justify-between items-center mb-4">
+                   <p className="text-sm font-bold text-gray-500 italic">Số dư hiện tại:</p>
+                   <p className="text-lg font-black text-gray-400">{walletBalance.toLocaleString()}đ</p>
                 </div>
                 {isInsufficient ? (
                   <div className="p-4 bg-red-50 border-2 border-red-100 rounded-2xl flex items-center gap-4 mt-4">
                      <div className="w-10 h-10 bg-red-500 text-white rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-red-200">
                         <Zap className="w-5 h-5" />
                      </div>
-                     <p className="text-sm font-bold text-red-600">Số dư không đủ! Bạn cần nạp thêm ít nhất {(plan.rawPrice - walletBalance).toLocaleString()}đ.</p>
+                     <p className="text-sm font-bold text-red-600">Số dư không đủ! Bạn cần nạp thêm ít nhất {(totalPrice - walletBalance).toLocaleString()}đ.</p>
                   </div>
                 ) : (
                   <div className="p-4 bg-green-50 border-2 border-green-100 rounded-2xl flex items-center gap-4 mt-4">
@@ -5867,11 +6105,17 @@ export default function App() {
               onBack={() => handleSelect('pro', 'plans')} 
               plan={selectedPlan}
               user={user}
+              userData={userData}
               walletBalance={walletBalance}
               onSuccess={async (finalBalance, planId) => {
                 await handleUpdateBalance(finalBalance);
-                await updateDoc(doc(db, 'users', user.uid), { activePlanId: planId });
-                showToast('Đăng ký gói thành công!');
+                const updates: any = { activePlanId: planId };
+                if (planId === 'linkheart_voucher') {
+                  updates.voucherSubscriptionActive = true;
+                  updates.vouchers = (userData?.vouchers || 0) + 20;
+                }
+                await updateDoc(doc(db, 'users', user.uid), updates);
+                showToast(planId === 'linkheart_voucher' ? 'Đã nhận 20 Voucher vào ví!' : 'Đăng ký gói thành công!');
                 handleSelect('portal');
               }}
               onTopUp={() => handleSelect('pro', 'wallet')}
