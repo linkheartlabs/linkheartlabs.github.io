@@ -106,14 +106,26 @@ declare const process: any;
 
 const getApiKey = (index?: number) => {
   try {
-    // AI Studio automatically provides GEMINI_API_KEY in process.env
-    // vite.config.ts maps these variables so they are available in the client
-    if (index === undefined) return (process.env.GEMINI_API_KEY || "").trim();
-    if (index === 1) return (process.env.VITE_GEMINI_API_KEY_1 || "").trim();
-    if (index === 2) return (process.env.VITE_GEMINI_API_KEY_2 || "").trim();
-    if (index === 3) return (process.env.VITE_GEMINI_API_KEY_3 || "").trim();
-    if (index === 4) return (process.env.VITE_GEMINI_API_KEY_4 || "").trim();
-    if (index === 5) return (process.env.VITE_GEMINI_API_KEY_5 || "").trim();
+    // Vite provides environment variables through import.meta.env
+    // AI Studio provides them through process.env (mapped in vite.config.ts)
+    const iEnv = (import.meta as any).env || {};
+    const pEnv = (typeof process !== 'undefined' ? process.env : {}) as any;
+
+    if (index === undefined) {
+      return (pEnv.GEMINI_API_KEY || iEnv.VITE_GEMINI_API_KEY || pEnv.VITE_GEMINI_API_KEY || "").trim();
+    }
+
+    // Try various possible naming conventions for the secondary keys
+    const keys = [
+      "", // index 0 (not used)
+      pEnv.VITE_GEMINI_API_KEY_1 || pEnv.GEMINI_API_KEY_1 || iEnv.VITE_GEMINI_API_KEY_1 || "",
+      pEnv.VITE_GEMINI_API_KEY_2 || pEnv.GEMINI_API_KEY_2 || iEnv.VITE_GEMINI_API_KEY_2 || "",
+      pEnv.VITE_GEMINI_API_KEY_3 || pEnv.GEMINI_API_KEY_3 || iEnv.VITE_GEMINI_API_KEY_3 || "",
+      pEnv.VITE_GEMINI_API_KEY_4 || pEnv.GEMINI_API_KEY_4 || iEnv.VITE_GEMINI_API_KEY_4 || "",
+      pEnv.VITE_GEMINI_API_KEY_5 || pEnv.GEMINI_API_KEY_5 || iEnv.VITE_GEMINI_API_KEY_5 || ""
+    ];
+
+    return (keys[index] || "").trim();
   } catch (e) {
     console.warn(`Linky: Failed to read key ${index || 'primary'}`, e);
   }
@@ -252,7 +264,7 @@ const handleToolCall = async (call: { name: string, args: any }) => {
 // --- Linky AI Response with Key Rotation and Tool Handling ---
 const getLinkyAIResponse = async (userPrompt: string, systemContext: string) => {
   const keysToTry = [undefined, 1, 2, 3, 4, 5]; 
-  const modelsToTry = ["gemini-3-flash-preview", "gemini-3.1-flash-lite-preview"];
+  const modelsToTry = ["gemini-3-flash-preview", "gemini-flash-latest", "gemini-3.1-flash-lite-preview"];
   let lastError = null;
 
   const systemInstruction = `${systemContext}
@@ -747,10 +759,11 @@ const LinkyAI = ({ user }: { user: FirebaseUser | null }) => {
       setMessages(prev => [...prev, { role: 'ai', text: aiText }]);
       speak(aiText);
     } catch (error: any) {
-      console.error("Linky error:", error);
-      const errorMsg = error.message?.includes('429') 
-        ? "Linky đang hơi quá tải một xíu do có nhiều người cùng hỏi, bạn đợi mình 5-10 giây rồi hỏi lại nhé! Cảm ơn bạn."
-        : "Linky đang gặp chút trục trặc mạng. Hãy thử lại trong giây lát!";
+      console.error("Linky error details:", error);
+      const isRateLimit = error.message?.includes('429') || error.status === 429;
+      const errorMsg = isRateLimit 
+        ? "Linky đang hơi quá tải một xíu do có nhiều người cùng hỏi (Lỗi 429), bạn đợi mình 5-10 giây rồi hỏi lại nhé! Cảm ơn bạn."
+        : `Linky đang gặp chút trục trặc (Lỗi: ${error.message?.substring(0, 50)}...). Hãy thử lại trong giây lát!`;
       setMessages(prev => [...prev, { role: 'ai', text: errorMsg }]);
     } finally {
       setIsTyping(false);
