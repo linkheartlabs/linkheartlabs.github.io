@@ -264,7 +264,10 @@ const handleToolCall = async (call: { name: string, args: any }) => {
 // --- Linky AI Response with Key Rotation and Tool Handling ---
 const getLinkyAIResponse = async (userPrompt: string, systemContext: string) => {
   const keysToTry = [undefined, 1, 2, 3, 4, 5]; 
-  const modelsToTry = ["gemini-3-flash-preview", "gemini-flash-latest", "gemini-3.1-flash-lite-preview"];
+  // Shuffle keys to distribute load/avoid systematic limits
+  const shuffledKeys = [...keysToTry].sort(() => Math.random() - 0.5);
+  
+  const modelsToTry = ["gemini-3-flash-preview", "gemini-flash-latest"];
   let lastError = null;
 
   const systemInstruction = `${systemContext}
@@ -274,37 +277,47 @@ const getLinkyAIResponse = async (userPrompt: string, systemContext: string) => 
     Hành động: createHelpRequest, searchHelpRequests, callCompanion, updateHelpStatus.
     
     QUY TẮC QUAN TRỌNG:
-    1. Khi có tình huống KHẨN CẤP (cấp cứu, tai nạn, đau tim): KHÔNG ĐƯỢC hỏi địa chỉ. Hãy nói rằng Linky ĐÃ XÁC ĐỊNH ĐƯỢC VỊ TRÍ qua GPS và đang liên hệ ngay với BỆNH VIỆN hoặc NHÂN VIÊN y tế gần nhất.
-    2. Phản hồi cực kỳ ngắn gọn, ấm áp, tập trung vào hành động cứu hỗ.
-    3. Luôn ưu tiên an toàn tính mạng.
+    1. Khi có tình huống KHẨN CẤP: Linky ĐÃ XÁC ĐỊNH ĐƯỢC VỊ TRÍ, đang liên hệ ngay với BỆNH VIỆN gần nhất.
+    2. Phản hồi cực ngắn, ấm áp.
   `;
 
+  // Helper for requests with timeout
+  const fetchWithTimeout = async (promise: Promise<any>, timeoutMs: number) => {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Request Timeout (10s)')), timeoutMs))
+    ]);
+  };
+
   for (const modelName of modelsToTry) {
-    for (const keyIndex of keysToTry) {
+    // Only try up to 3 keys per model to avoid massive delays (max 6 attempts total)
+    const limitedKeys = shuffledKeys.slice(0, 3);
+    
+    for (const keyIndex of limitedKeys) {
       const geminiApiKey = getApiKey(keyIndex);
-      if (!geminiApiKey) {
-        if (keyIndex !== undefined) console.debug(`Linky: Skipping empty API key slot ${keyIndex}`);
-        continue;
-      }
+      if (!geminiApiKey) continue;
 
       try {
-        console.log(`Linky: Attempting request with Model ${modelName} and API Key ${keyIndex || 'Primary'}...`);
+        console.log(`Linky: Trying ${modelName} with Key ${keyIndex || 'Primary'}...`);
         const ai = new GoogleGenAI({ apiKey: geminiApiKey });
         
-        const response = await ai.models.generateContent({
-          model: modelName, 
-          config: {
-            systemInstruction: systemInstruction,
-            tools: [{ functionDeclarations: [createHelpRequestTool, searchHelpRequestsTool, callCompanionTool, updateHelpStatusTool] }],
-            safetySettings: [
-              { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-              { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-              { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-              { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-            ]
-          },
-          contents: [{ role: 'user', parts: [{ text: userPrompt }] }]
-        });
+        const response: any = await fetchWithTimeout(
+          ai.models.generateContent({
+            model: modelName, 
+            config: {
+              systemInstruction: systemInstruction,
+              tools: [{ functionDeclarations: [createHelpRequestTool, searchHelpRequestsTool, callCompanionTool, updateHelpStatusTool] }],
+              safetySettings: [
+                { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+                { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+              ]
+            },
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }]
+          }),
+          10000 // 10s timeout
+        );
 
         const functionCalls = response.functionCalls;
         if (functionCalls && functionCalls.length > 0) {
@@ -312,36 +325,32 @@ const getLinkyAIResponse = async (userPrompt: string, systemContext: string) => 
           for (const call of functionCalls) {
             const result = await handleToolCall(call as any);
             toolResponses.push({
-              functionResponse: {
-                name: call.name,
-                response: { content: result }
-              }
+              functionResponse: { name: call.name, response: { content: result } }
             });
           }
 
-          const finalResponse = await ai.models.generateContent({
-            model: modelName,
-            config: { systemInstruction: systemInstruction },
-            contents: [
-              { role: "user", parts: [{ text: userPrompt }] },
-              { role: "model", parts: response.candidates[0].content.parts },
-              { role: "user", parts: toolResponses as any }
-            ]
-          });
+          const finalPass: any = await fetchWithTimeout(
+            ai.models.generateContent({
+              model: modelName,
+              config: { systemInstruction: systemInstruction },
+              contents: [
+                { role: "user", parts: [{ text: userPrompt }] },
+                { role: "model", parts: response.candidates[0].content.parts },
+                { role: "user", parts: toolResponses as any }
+              ]
+            }),
+            8000 // 8s timeout for second pass
+          );
 
-          return finalResponse.text || "Linky đã hoàn thành yêu cầu của bạn.";
+          return finalPass.text || "Linky đã hoàn thành yêu cầu.";
         }
 
-        return response.text || "Linky đã nhận được thông tin.";
+        return response.text || "Linky đã nhận tin.";
       } catch (error: any) {
-        console.warn(`Linky: Model ${modelName} with Key ${keyIndex || 'Primary'} failed:`, error.message);
+        console.warn(`Linky: ${modelName} (Key ${keyIndex || 'Primary'}) failed:`, error.message);
         lastError = error;
-        // If it's a quota or safety error, try next key/model immediately
-        if (error.message?.includes('429') || error.message?.includes('safety') || error.message?.includes('limit')) {
-          console.log("Linky: Rotating to next available option...");
-          continue;
-        }
-        // If it's another error, we'll still keep trying keys/models
+        // Continue to next key on any error to ensure we find a working one fast
+        continue;
       }
     }
   }
