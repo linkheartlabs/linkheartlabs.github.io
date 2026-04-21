@@ -5614,7 +5614,23 @@ export default function App() {
       setUser(u);
       setAuthLoading(false);
     });
-    return () => unsubscribe();
+    
+    // Safety net: if Firebase doesn't respond in 8 seconds, 
+    // stop loading so the user can at least see the UI (might be an offline/config issue)
+    const timer = setTimeout(() => {
+      setAuthLoading(prev => {
+        if (prev) {
+          console.warn("Firebase Auth timed out, forcing load state.");
+          return false;
+        }
+        return prev;
+      });
+    }, 8000);
+
+    return () => {
+      unsubscribe();
+      clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
