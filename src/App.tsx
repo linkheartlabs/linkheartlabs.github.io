@@ -105,17 +105,18 @@ const speak = (text: string) => {
 declare const process: any;
 
 const getApiKey = (index?: number) => {
-  // Use a fallback-safe check for environment variables
   // AI Studio automatically provides GEMINI_API_KEY in process.env
   if (index === undefined) return (process.env.GEMINI_API_KEY || "").trim();
   
-  // Secondary keys from VITE_ for redundancy
-  const env = (window as any).process?.env || {};
-  if (index === 1) return (env.VITE_GEMINI_API_KEY_1 || env.GEMINI_API_KEY_1 || "").trim();
-  if (index === 2) return (env.VITE_GEMINI_API_KEY_2 || env.GEMINI_API_KEY_2 || "").trim();
-  if (index === 3) return (env.VITE_GEMINI_API_KEY_3 || env.GEMINI_API_KEY_3 || "").trim();
-  if (index === 4) return (env.VITE_GEMINI_API_KEY_4 || env.GEMINI_API_KEY_4 || "").trim();
-  if (index === 5) return (env.VITE_GEMINI_API_KEY_5 || env.GEMINI_API_KEY_5 || "").trim();
+  // Use import.meta.env for Vite environment variables
+  const iEnv = (import.meta as any).env || {};
+  
+  // Try to find keys in various possible locations for robustness
+  if (index === 1) return (iEnv.VITE_GEMINI_API_KEY_1 || (process.env || {}).GEMINI_API_KEY_1 || "").trim();
+  if (index === 2) return (iEnv.VITE_GEMINI_API_KEY_2 || (process.env || {}).GEMINI_API_KEY_2 || "").trim();
+  if (index === 3) return (iEnv.VITE_GEMINI_API_KEY_3 || (process.env || {}).GEMINI_API_KEY_3 || "").trim();
+  if (index === 4) return (iEnv.VITE_GEMINI_API_KEY_4 || (process.env || {}).GEMINI_API_KEY_4 || "").trim();
+  if (index === 5) return (iEnv.VITE_GEMINI_API_KEY_5 || (process.env || {}).GEMINI_API_KEY_5 || "").trim();
   return "";
 };
 
@@ -267,9 +268,13 @@ const getLinkyAIResponse = async (userPrompt: string, systemContext: string) => 
 
   for (const keyIndex of keysToTry) {
     const geminiApiKey = getApiKey(keyIndex);
-    if (!geminiApiKey) continue;
+    if (!geminiApiKey) {
+      if (keyIndex !== undefined) console.debug(`Linky: Skipping empty API key slot ${keyIndex}`);
+      continue;
+    }
 
     try {
+      console.log(`Linky: Attempting request with API Key ${keyIndex || 'Primary'}...`);
       const ai = new GoogleGenAI({ apiKey: geminiApiKey });
       const modelName = "gemini-3-flash-preview"; 
       
@@ -316,10 +321,13 @@ const getLinkyAIResponse = async (userPrompt: string, systemContext: string) => 
 
       return response.text || "Linky đã nhận được thông tin.";
     } catch (error: any) {
-      console.warn(`Linky API Key Error (${keyIndex || 'Primary'}):`, error.message);
+      console.warn(`Linky: API Key ${keyIndex || 'Primary'} failed:`, error.message);
       lastError = error;
       // If it's a quota or safety error, try next key immediately
-      if (error.message?.includes('429') || error.message?.includes('safety')) continue;
+      if (error.message?.includes('429') || error.message?.includes('safety')) {
+        console.log("Linky: Rotating to next available API key...");
+        continue;
+      }
       // If it's a fatal error but we have more keys, try one more
     }
   }
