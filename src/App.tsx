@@ -105,18 +105,18 @@ const speak = (text: string) => {
 declare const process: any;
 
 const getApiKey = (index?: number) => {
-  // AI Studio automatically provides GEMINI_API_KEY in process.env
-  if (index === undefined) return (process.env.GEMINI_API_KEY || "").trim();
-  
-  // Use import.meta.env for Vite environment variables
-  const iEnv = (import.meta as any).env || {};
-  
-  // Try to find keys in various possible locations for robustness
-  if (index === 1) return (iEnv.VITE_GEMINI_API_KEY_1 || (process.env || {}).GEMINI_API_KEY_1 || "").trim();
-  if (index === 2) return (iEnv.VITE_GEMINI_API_KEY_2 || (process.env || {}).GEMINI_API_KEY_2 || "").trim();
-  if (index === 3) return (iEnv.VITE_GEMINI_API_KEY_3 || (process.env || {}).GEMINI_API_KEY_3 || "").trim();
-  if (index === 4) return (iEnv.VITE_GEMINI_API_KEY_4 || (process.env || {}).GEMINI_API_KEY_4 || "").trim();
-  if (index === 5) return (iEnv.VITE_GEMINI_API_KEY_5 || (process.env || {}).GEMINI_API_KEY_5 || "").trim();
+  try {
+    // AI Studio automatically provides GEMINI_API_KEY in process.env
+    // vite.config.ts maps these variables so they are available in the client
+    if (index === undefined) return (process.env.GEMINI_API_KEY || "").trim();
+    if (index === 1) return (process.env.VITE_GEMINI_API_KEY_1 || "").trim();
+    if (index === 2) return (process.env.VITE_GEMINI_API_KEY_2 || "").trim();
+    if (index === 3) return (process.env.VITE_GEMINI_API_KEY_3 || "").trim();
+    if (index === 4) return (process.env.VITE_GEMINI_API_KEY_4 || "").trim();
+    if (index === 5) return (process.env.VITE_GEMINI_API_KEY_5 || "").trim();
+  } catch (e) {
+    console.warn(`Linky: Failed to read key ${index || 'primary'}`, e);
+  }
   return "";
 };
 
@@ -252,6 +252,7 @@ const handleToolCall = async (call: { name: string, args: any }) => {
 // --- Linky AI Response with Key Rotation and Tool Handling ---
 const getLinkyAIResponse = async (userPrompt: string, systemContext: string) => {
   const keysToTry = [undefined, 1, 2, 3, 4, 5]; 
+  const modelsToTry = ["gemini-3-flash-preview", "gemini-1.5-flash-latest"];
   let lastError = null;
 
   const systemInstruction = `${systemContext}
@@ -266,69 +267,70 @@ const getLinkyAIResponse = async (userPrompt: string, systemContext: string) => 
     3. Luôn ưu tiên an toàn tính mạng.
   `;
 
-  for (const keyIndex of keysToTry) {
-    const geminiApiKey = getApiKey(keyIndex);
-    if (!geminiApiKey) {
-      if (keyIndex !== undefined) console.debug(`Linky: Skipping empty API key slot ${keyIndex}`);
-      continue;
-    }
-
-    try {
-      console.log(`Linky: Attempting request with API Key ${keyIndex || 'Primary'}...`);
-      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-      const modelName = "gemini-3-flash-preview"; 
-      
-      const response = await ai.models.generateContent({
-        model: modelName, 
-        config: {
-          systemInstruction: systemInstruction,
-          tools: [{ functionDeclarations: [createHelpRequestTool, searchHelpRequestsTool, callCompanionTool, updateHelpStatusTool] }],
-          safetySettings: [
-            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          ]
-        },
-        contents: [{ role: 'user', parts: [{ text: userPrompt }] }]
-      });
-
-      const functionCalls = response.functionCalls;
-      if (functionCalls && functionCalls.length > 0) {
-        const toolResponses = [];
-        for (const call of functionCalls) {
-          const result = await handleToolCall(call as any);
-          toolResponses.push({
-            functionResponse: {
-              name: call.name,
-              response: { content: result }
-            }
-          });
-        }
-
-        const finalResponse = await ai.models.generateContent({
-          model: modelName,
-          config: { systemInstruction: systemInstruction },
-          contents: [
-            { role: "user", parts: [{ text: userPrompt }] },
-            { role: "model", parts: response.candidates[0].content.parts },
-            { role: "user", parts: toolResponses as any }
-          ]
-        });
-
-        return finalResponse.text || "Linky đã hoàn thành yêu cầu của bạn.";
-      }
-
-      return response.text || "Linky đã nhận được thông tin.";
-    } catch (error: any) {
-      console.warn(`Linky: API Key ${keyIndex || 'Primary'} failed:`, error.message);
-      lastError = error;
-      // If it's a quota or safety error, try next key immediately
-      if (error.message?.includes('429') || error.message?.includes('safety')) {
-        console.log("Linky: Rotating to next available API key...");
+  for (const modelName of modelsToTry) {
+    for (const keyIndex of keysToTry) {
+      const geminiApiKey = getApiKey(keyIndex);
+      if (!geminiApiKey) {
+        if (keyIndex !== undefined) console.debug(`Linky: Skipping empty API key slot ${keyIndex}`);
         continue;
       }
-      // If it's a fatal error but we have more keys, try one more
+
+      try {
+        console.log(`Linky: Attempting request with Model ${modelName} and API Key ${keyIndex || 'Primary'}...`);
+        const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+        
+        const response = await ai.models.generateContent({
+          model: modelName, 
+          config: {
+            systemInstruction: systemInstruction,
+            tools: [{ functionDeclarations: [createHelpRequestTool, searchHelpRequestsTool, callCompanionTool, updateHelpStatusTool] }],
+            safetySettings: [
+              { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+              { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+              { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+              { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            ]
+          },
+          contents: [{ role: 'user', parts: [{ text: userPrompt }] }]
+        });
+
+        const functionCalls = response.functionCalls;
+        if (functionCalls && functionCalls.length > 0) {
+          const toolResponses = [];
+          for (const call of functionCalls) {
+            const result = await handleToolCall(call as any);
+            toolResponses.push({
+              functionResponse: {
+                name: call.name,
+                response: { content: result }
+              }
+            });
+          }
+
+          const finalResponse = await ai.models.generateContent({
+            model: modelName,
+            config: { systemInstruction: systemInstruction },
+            contents: [
+              { role: "user", parts: [{ text: userPrompt }] },
+              { role: "model", parts: response.candidates[0].content.parts },
+              { role: "user", parts: toolResponses as any }
+            ]
+          });
+
+          return finalResponse.text || "Linky đã hoàn thành yêu cầu của bạn.";
+        }
+
+        return response.text || "Linky đã nhận được thông tin.";
+      } catch (error: any) {
+        console.warn(`Linky: Model ${modelName} with Key ${keyIndex || 'Primary'} failed:`, error.message);
+        lastError = error;
+        // If it's a quota or safety error, try next key/model immediately
+        if (error.message?.includes('429') || error.message?.includes('safety') || error.message?.includes('limit')) {
+          console.log("Linky: Rotating to next available option...");
+          continue;
+        }
+        // If it's another error, we'll still keep trying keys/models
+      }
     }
   }
 
