@@ -252,7 +252,7 @@ const handleToolCall = async (call: { name: string, args: any }) => {
 // --- Linky AI Response with Key Rotation and Tool Handling ---
 const getLinkyAIResponse = async (userPrompt: string, systemContext: string) => {
   const keysToTry = [undefined, 1, 2, 3, 4, 5]; 
-  const modelsToTry = ["gemini-3-flash-preview", "gemini-1.5-flash-latest"];
+  const modelsToTry = ["gemini-3-flash-preview", "gemini-3.1-flash-lite-preview"];
   let lastError = null;
 
   const systemInstruction = `${systemContext}
